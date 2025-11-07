@@ -102,6 +102,7 @@ class DataProcessor():
     mimetypes.add_type('image/fits', '.fz')
     mimetypes.add_type('application/fits', '.fits')
     mimetypes.add_type('application/fits', '.fz')
+    mimetypes.add_type('text/csv', '.psv')
 
     def process_data(self, data_product):
         """
