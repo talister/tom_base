@@ -2,7 +2,9 @@ import logging
 import mimetypes
 
 import astropy.io.ascii
-# from astropy.time import Time
+import numpy as np
+from astropy import units as u
+from astropy.time import Time, TimezoneInfo
 from django.core.files.storage import default_storage
 
 from tom_dataproducts.data_processor import DataProcessor
@@ -56,6 +58,35 @@ class ADESProcessor(DataProcessor):
         data = astropy.io.ascii.read(data_file.read())
         if len(data) < 1:
             raise InvalidFileFormatException('Empty table or invalid file type')
+
+        # Mapping between returned quantities and ADES columns
+        mapping = {
+                    'ra_rmserror': 'rmsRA',
+                    'dec_rmserror': 'rmsDec',
+                    'magnitude': 'mag',
+                    'mag_error': 'rmsMag',
+
+        }
+        try:
+            utc = TimezoneInfo(utc_offset=0*u.hour)
+
+            for row in data:
+                time = Time(row['obsTime'], format='isot', scale='utc')
+                time.format = 'datetime'
+                value = {
+                    'timestamp': time.to_datetime(timezone=utc),
+                    'filter': str(row['band']),
+                    'telescope': row['stn'],
+                }
+                value['ra'] = float(row['ra'])
+                value['dec'] = float(row['dec'])
+                for key, col in mapping.items():
+                    value[key] = None
+                    if np.ma.is_masked(row[col]) is False:
+                        value[key] = float(row[col])
+                astrometry.append(value)
+        except Exception as e:
+            raise InvalidFileFormatException(e)
         return astrometry
 
     def _process_astrometry_from_df(self, df):
