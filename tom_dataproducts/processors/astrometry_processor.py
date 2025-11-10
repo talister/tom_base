@@ -3,6 +3,7 @@ import mimetypes
 
 import astropy.io.ascii
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from astropy.time import Time, TimezoneInfo
 from django.core.files.storage import default_storage
@@ -99,4 +100,33 @@ class ADESProcessor(DataProcessor):
         :rtype: list
         """
         astrometry = []
+
+        try:
+            utc = TimezoneInfo(utc_offset=0*u.hour)
+
+            for row in df.itertuples(index=False):
+                time = Time(row.obstime, format='isot', scale='utc')
+                time.format = 'datetime'
+                value = {
+                    'timestamp': time.to_datetime(timezone=utc),
+                    'filter': str(row.band),
+                    'telescope': row.stn,
+                }
+                value['ra'] = float(row.ra)
+                value['ra_rmserror'] = None
+                if pd.isna(row.rmsra) is False:
+                    value['ra_rmserror'] = row.rmsra
+                value['dec'] = float(row.dec)
+                value['dec_rmserror'] = None
+                if pd.isna(row.rmsdec) is False:
+                    value['dec_rmserror'] = row.rmsdec
+                value['magnitude'] = None
+                if pd.isna(row.mag) is False:
+                    value['magnitude'] = row.mag
+                value['mag_error'] = None
+                if pd.isna(row.rmsmag) is False:
+                    value['mag_error'] = row.rmsmag
+                astrometry.append(value)
+        except Exception as e:
+            raise InvalidFileFormatException(e)
         return astrometry
