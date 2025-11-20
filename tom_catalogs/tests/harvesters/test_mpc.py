@@ -289,13 +289,13 @@ class TestMPCExplorerHarvester(TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 200
         return_payload = [{'ele220': [],
-            'eq0': [],
-            'eq0_dict': [],
-            'eq1': [],
-            'eq1_dict': [],
-            'mpc_orb': [],
-            'rwo': [],
-            'rwo_dict': []},  200]
+                           'eq0': [],
+                           'eq0_dict': [],
+                           'eq1': [],
+                           'eq1_dict': [],
+                           'mpc_orb': [],
+                           'rwo': [],
+                           'rwo_dict': []},  200]
         mock_response.json.return_value = return_payload
         mock_response.content = str.encode(json.dumps(return_payload, indent=0))
         mock_get.return_value = mock_response
