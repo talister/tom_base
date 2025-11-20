@@ -119,12 +119,11 @@ class MPCExplorerHarvester(AbstractHarvester):
         response = requests.get("https://data.minorplanetcenter.net/api/get-orb", json={"desig": term})
         if response.ok:
             response_data = response.json()
-            if len(response_data) >= 2 and response_data[0] is not None and 'mpc_orb' in response_data[0]:
+            if len(response_data) >= 2 and response_data[0] is not None and 'mpc_orb' in response_data[0] and len(response_data[0].get('mpc_orb', [])) != 0:
                 # Format currently seems to be a 2-length list with 0th element containing
-                # MPC_ORB.JSON format date and a status code in the 1th element. I suspect
-                # there may be extra entries for e.g. comets, but these are not present in MPC Explorer yet
+                # MPC_ORB.JSON format date and a status code in the 1th element.
                 # Store everything other than the status code for now and for later parsing.
-                self.catalog_data = response.json()[0:-1]
+                self.catalog_data = response_data[0:-1]
 
     def to_target(self):
         target = super().to_target()

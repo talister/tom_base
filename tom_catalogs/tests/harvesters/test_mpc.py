@@ -4,6 +4,7 @@ from importlib_resources import files
 from django.test import tag, TestCase
 from unittest.mock import MagicMock, patch
 
+from tom_catalogs.harvester import MissingDataException
 from tom_catalogs.harvesters.mpc import MPCHarvester, MPCExplorerHarvester
 
 
@@ -281,6 +282,30 @@ class TestMPCExplorerHarvester(TestCase):
         result = self.broker.query('123456P')
         self.assertEqual(result, None)
         self.assertIsNone(self.broker.catalog_data)
+
+    @patch('requests.get')
+    def test_to_target_failure_bad_object(self, mock_get):
+        """test query of non-existant object"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        return_payload = [{'ele220': [],
+            'eq0': [],
+            'eq0_dict': [],
+            'eq1': [],
+            'eq1_dict': [],
+            'mpc_orb': [],
+            'rwo': [],
+            'rwo_dict': []},  200]
+        mock_response.json.return_value = return_payload
+        mock_response.content = str.encode(json.dumps(return_payload, indent=0))
+        mock_get.return_value = mock_response
+
+        result = self.broker.query('C/202')
+        self.assertEqual(result, None)
+        self.assertIsNone(self.broker.catalog_data)
+        with self.assertRaises(MissingDataException):
+            target = self.broker.to_target()
+            self.assertIsNone(target)
 
     def test_to_target(self):
         target = self.broker.to_target()
