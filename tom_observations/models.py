@@ -192,7 +192,7 @@ class Facility(models.Model):
     :param site_code: Short-hand code used to reference the facility
     :type site_code: str
 
-    :param mpc_observatory_code: Three-digit reference code for the facility from the Minor Planet Center
+    :param mpc_observatory_code: Three-character reference code for the facility from the Minor Planet Center
     :type mpc_observatory_code: str
 
     :param full_name: Name of the facility
@@ -207,7 +207,7 @@ class Facility(models.Model):
     :param latitude: Latitude of facility if Earth-based in decimal degrees
     :type latitude: float
 
-    :param longitude: Langitude of facility if Earth-base in decimal degrees
+    :param longitude: Longitude of facility if Earth-based in decimal degrees (West +ve)
     :type longitude: float
 
     :param elevation: Elevation of facility above mean sealevel if Earth-based
@@ -268,6 +268,7 @@ class Facility(models.Model):
         max_length=3,
         null=True,
         blank=True,
+        verbose_name='MPC observatory code',
         help_text="<a href='https://minorplanetcenter.net/iau/lists/ObsCodesF.html'>" "MPC Observatory Code List</a>"
     )
     full_name = models.CharField(max_length=100)
