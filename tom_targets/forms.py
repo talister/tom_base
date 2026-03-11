@@ -1,13 +1,17 @@
+from tom_targets.validators import validate_mjd
+import datetime
+
 from crispy_forms.layout import Layout, Div
 from django import forms
+from django.conf import settings
 from astropy.coordinates import Angle
 from astropy import units as u
 from crispy_forms.helper import FormHelper
 from django.forms import ValidationError, inlineformset_factory
-from django.conf import settings
 from django.contrib.auth.models import Group
 from guardian.shortcuts import assign_perm, get_groups_with_perms, remove_perm
 
+from tom_observations.utils import get_facilities
 from tom_dataproducts.sharing import get_sharing_destination_options
 from .models import Target, TargetExtra, TargetName, TargetList, PersistentShare
 from tom_targets.base_models import (SIDEREAL_FIELDS, NON_SIDEREAL_FIELDS, REQUIRED_SIDEREAL_FIELDS,
@@ -140,6 +144,16 @@ class NonSiderealTargetCreateForm(TargetForm):
         for field in REQUIRED_NON_SIDEREAL_FIELDS:
             self.fields[field].required = True
 
+    def clean_epoch_of_perihelion(self):
+        if value := self.cleaned_data.get('epoch_of_perihelion'):
+            validate_mjd(value)
+        return value
+
+    def clean_epoch_of_elements(self):
+        if value := self.cleaned_data.get('epoch_of_elements'):
+            validate_mjd(value)
+        return value
+
     def clean(self):
         """
         Look at the 'scheme' field and check the fields required for the
@@ -147,7 +161,14 @@ class NonSiderealTargetCreateForm(TargetForm):
         """
         cleaned_data = super().clean()
         scheme = cleaned_data['scheme']  # scheme is a required field, so this should be safe
+        eccentricity = cleaned_data.get('eccentricity')
         required_fields = REQUIRED_NON_SIDEREAL_FIELDS_PER_SCHEME[scheme]
+
+        # Check that eccentiricty isn't too high for a non-comet orbital scheme.
+        if eccentricity and eccentricity > 0.9 and scheme != 'MPC_COMET':
+            raise ValidationError(
+                    "High eccentricity objects should use the MPC_COMET scheme to ensure proper orbital calculations."
+                )
 
         for field in required_fields:
             if not cleaned_data.get(field):
@@ -282,3 +303,23 @@ class PersistentShareForm(AdminPersistentShareForm):
         if self.target_id:
             self.fields['target'].initial = self.target_id
             self.fields['target'].disabled = True
+
+
+class TargetSelectionForm(forms.Form):
+    """
+    Form for selecting the targets from a pre-existing TargetList
+    """
+    target_list = forms.ModelChoiceField(
+        TargetList.objects.all(),
+        required=True)
+    observatory = forms.ChoiceField(required=True, choices=[])
+    window_start = forms.DateTimeField(
+        required=True,
+        initial=datetime.datetime.today,
+        widget=forms.TextInput(attrs={'type': 'datetime'}),
+        help_text='YYYY-MM-DD HH:MM:SS UTC'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['observatory'].choices = get_facilities()

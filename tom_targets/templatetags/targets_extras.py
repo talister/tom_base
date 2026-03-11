@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 import logging
 from typing import Any
 
@@ -324,6 +325,26 @@ def aladin_skymap(targets):
     return context
 
 
+@register.inclusion_tag('tom_targets/partials/aladin_skymap_targets_oob.html')
+def aladin_skymap_targets_oob(targets):
+    """
+    Lightweight template tag for HTMX responses -- sends only the updated
+    target list as JSON to the existing Aladin viewer via an OOB swap.
+
+    Unlike ``aladin_skymap``, this does not recompute Moon/Sun positions or
+    reinitialize the viewer, making it suitable for repeated HTMX calls.
+    """
+    target_list = []
+    for target in targets:
+        if target.type == Target.SIDEREAL:
+            target_list.append({
+                'name': target.name,
+                'ra': target.ra,
+                'dec': target.dec,
+            })
+    return {'targets_json': json.dumps(target_list)}
+
+
 @register.inclusion_tag('tom_targets/partials/target_merge_fields.html')
 def target_merge_fields(target1, target2):
     """
@@ -475,29 +496,41 @@ def create_persistent_share(context, target):
     return {'form': form, 'target': target}
 
 
-@register.inclusion_tag('tom_targets/partials/module_buttons.html')
-def get_buttons(target):
+@register.inclusion_tag('tom_targets/partials/module_buttons.html', takes_context=True)
+def get_buttons(context):
     """
-    Returns a list of buttons from imported modules to be displayed on the target detail page.
-    In order to add a button to the target detail page, an app must contain an integration points attribute.
-    The Integration Points attribute must be a dictionary with a key of 'target_detail_button':
-    'target_detail_button' = {'namespace': <<redirect path, i.e. 'app:name'>>,
-                              'title': <<Button title>>,
-                              'class': <<Button class i.e 'btn  btn-info'>>,
-                              'text': <<What you want the button to actually say>>,
-                              }
+    Imports the target detail Button content from relevant apps into the template.
 
+    Each target_button should be contained in a list of dictionaries in an app's apps.py `target_detail_buttons` method.
+    Each target_button dictionary should contain a 'partial' key with the path to the html partial template and
+    optionally a 'context' key with the path to the context processor class (typically a templatetag).
+
+    FOR EXAMPLE:
+    [{'partial': 'path/to/partial.html',
+      'context': 'path/to/context/data/method'}]
     """
-    button_list = []
+    target_buttons_to_display = []
     for app in apps.get_app_configs():
         try:
-            button_info = app.target_detail_buttons()
-            if button_info:
-                button_list.append(button_info)
+            target_buttons = app.target_detail_buttons()
         except AttributeError:
-            pass
-
-    return {'target': target, 'button_list': button_list}
+            continue
+        if target_buttons:
+            for button in target_buttons:
+                new_context = {}
+                if button.get('context'):
+                    try:
+                        context_method = import_string(button.get('context'))
+                    except ImportError as e:
+                        logger.warning(f'WARNING: Could not import context for {app.name} target detail button from '
+                                       f'{button["context"]}.\n'
+                                       f'{e}')
+                        continue
+                    new_context = context_method(context)
+                target_buttons_to_display.append({'partial': button['partial'],
+                                                  'context': new_context})
+    context['target_buttons_to_display'] = target_buttons_to_display
+    return context
 
 
 @register.filter
