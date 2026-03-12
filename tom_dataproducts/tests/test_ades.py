@@ -40,10 +40,11 @@ class TestADESProcessor(TestCase):
         mocked_method.assert_called_with(self.data_product)
 
     def test_read(self):
-        """Test that Stuff Happens
+        """Test reading ADES astrometry from PSV.
 
-        The test data is a query on https://data.minorplanetcenter.net/explorer for '33933' with the resulting
-           ADES XML converted to PSV with `xmltopsv.py` from `iau-ades` and heavily trimmed down.
+        The test data is from a query on https://data.minorplanetcenter.net/explorer for '33933'.
+        The resulting ADES XML was converted to PSV using `xmltopsv.py` from `iau-ades`
+        and trimmed down for the test.
         """
         # read the test data in as a data_product's data
         with open(Path('tom_dataproducts/tests/test_data/test_ades.psv')) as ades_file:
@@ -63,6 +64,39 @@ class TestADESProcessor(TestCase):
         expected_dt = Time(datetime(2025, 4, 27, 21, 51, 58, int(1e6 * 0.890)))
         expected_mag = 19.39
         expected_magerr = 0.137
+        self.assertEqual(expected_dt, astrometry[-1]['timestamp'])
+        self.assertAlmostEqual(expected_mag, astrometry[-1]['magnitude'])
+        self.assertEqual(expected_magerr, astrometry[-1]['mag_error'])
+
+    def test_read_mpcexplorer(self):
+        """Test reading ADES astrometry from PSV with a different format. The MPC's Observations API
+        returns the underlying DB table names which aren't camelCase like the ADES standard, so test
+        that we can read in that format as well.
+
+        The test data is a query on https://data.minorplanetcenter.net/api/get-obs
+        for '2009 DP2' with the `output_format`: `ADES_DF` and the resulting JSON read into
+        a pandas DataFrame and then written out to PSV with `ades_df.to_csv('file.psv', sep='|')`
+        and heavily trimmed down.
+        """
+        # read the test data in as a data_product's data
+        with open(Path('tom_dataproducts/tests/test_data/test_ades_mpcexplorer.psv')) as ades_file:
+            self.data_product.data.save('test_data.csv', ades_file)
+
+        # this is the call under test
+        astrometry = ADESProcessor()._process_astrometry_from_plaintext(self.data_product)
+
+        expected_count = 5  # known a priori from test data in test_ades_mpcexplorer.psv
+        self.assertEqual(expected_count, len(astrometry))
+        expected_dt = Time(datetime(2009, 2, 17, 1, 29, 22, int(1e6 * 0.848)))
+        expected_mag = 19.8
+        expected_magerr = None
+        self.assertEqual(expected_dt, astrometry[0]['timestamp'])
+        self.assertEqual(expected_mag, astrometry[0]['magnitude'])
+        self.assertEqual(expected_magerr, astrometry[0]['mag_error'])
+
+        expected_dt = Time(datetime(2026, 3, 10, 3, 39, 4, int(1e6 * 0.900)))
+        expected_mag = 21.12
+        expected_magerr = 0.202
         self.assertEqual(expected_dt, astrometry[-1]['timestamp'])
         self.assertAlmostEqual(expected_mag, astrometry[-1]['magnitude'])
         self.assertEqual(expected_magerr, astrometry[-1]['mag_error'])

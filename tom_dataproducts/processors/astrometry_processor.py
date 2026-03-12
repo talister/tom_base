@@ -51,7 +51,7 @@ class ADESProcessor(DataProcessor):
         format) into a list of dicts.
         Details on the ADES standard: https://data.minorplanetcenter.net/mpcops/documentation/ades/
 
-        :param data_product: _description_
+        :param data_product: DataProduct with a populated 'data' FileField containing the ADES PSV file to be processed
         :type data_product: DataProduct
         """
         astrometry = []
@@ -60,19 +60,32 @@ class ADESProcessor(DataProcessor):
         if len(data) < 1:
             raise InvalidFileFormatException('Empty table or invalid file type')
 
-        # Mapping between returned quantities and ADES columns
-        mapping = {
+        # Mapping between returned quantities and ADES columns.
+        # There two versions, one for the actual ADES standard compliant from e.g.
+        # 'xmltopsv.py' or Astrometrica and one for the data from MPC Explorer/the Observations API
+        # which has all lowercase column names.
+        mapping_ades = {
+                    'time': 'obsTime',
                     'ra_rmserror': 'rmsRA',
                     'dec_rmserror': 'rmsDec',
                     'magnitude': 'mag',
                     'mag_error': 'rmsMag',
-
         }
+        mapping_mpcx = {
+                    'time': 'obstime',
+                    'ra_rmserror': 'rmsra',
+                    'dec_rmserror': 'rmsdec',
+                    'magnitude': 'mag',
+                    'mag_error': 'rmsmag',
+        }
+        mapping = mapping_ades
+        if 'obstime' in data.colnames:
+            mapping = mapping_mpcx
         try:
             utc = TimezoneInfo(utc_offset=0*u.hour)
 
             for row in data:
-                time = Time(row['obsTime'], format='isot', scale='utc')
+                time = Time(row[mapping['time']], format='isot', scale='utc')
                 time.format = 'datetime'
                 value = {
                     'timestamp': time.to_datetime(timezone=utc),
@@ -82,9 +95,10 @@ class ADESProcessor(DataProcessor):
                 value['ra'] = float(row['ra'])
                 value['dec'] = float(row['dec'])
                 for key, col in mapping.items():
-                    value[key] = None
-                    if np.ma.is_masked(row[col]) is False:
-                        value[key] = float(row[col])
+                    if key != 'time':
+                        value[key] = None
+                        if np.ma.is_masked(row[col]) is False:
+                            value[key] = float(row[col])
                 astrometry.append(value)
         except Exception as e:
             raise InvalidFileFormatException(e)
