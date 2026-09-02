@@ -365,12 +365,16 @@ class ReducedDatumCommon(models.Model):
 
     :param source_name: The original source of this datum. The current major use of this field is to track the data
                         service a datum came from, but can be used for other sources.
-
     :type source_name: str
 
     :param source_location: A reference to the location that this datum was originally sourced from. The current major
                             use of this field is the URL path to the alert that this datum came from.
     :type source_location: str
+
+    :param reduction_version: A short reference to the process, level, parameters, or version of the reduction used to
+                              create the reduced datum. Used to determine uniqueness of the datum. Additional details
+                              (reducer, full list of parameters, etc.) should be stored as needed in the ``value`` dict.
+    :type reduction_version: str
 
     """
 
@@ -388,11 +392,13 @@ class ReducedDatumCommon(models.Model):
     instrument = models.CharField(max_length=255, blank=True, default="")
     source_name = models.CharField(max_length=100, default="", blank=True)
     source_location = models.CharField(max_length=200, default="", blank=True)
+    reduction_version = models.CharField(max_length=50, blank=True, default="")
 
     objects = ReducedDatumManager()
 
     class Meta:
         abstract = True
+        get_latest_by = ("timestamp",)
 
 
 class ReducedDatum(ReducedDatumCommon):
@@ -405,9 +411,6 @@ class ReducedDatum(ReducedDatumCommon):
     """
 
     data_type = models.CharField(max_length=100, default="")
-
-    class Meta:
-        get_latest_by = ("timestamp",)
 
     def validate_unique(self, *args, **kwargs):
         """
@@ -450,12 +453,18 @@ class PhotometryReducedDatum(ReducedDatumCommon):
     bandpass = models.CharField(max_length=32)
     exposure_time = models.FloatField(blank=True, null=True)
 
-    class Meta:
+    class Meta(ReducedDatumCommon.Meta):
         constraints = [
             models.UniqueConstraint(
-                fields=["target", "bandpass", "timestamp"], name="unique_photometry"
+                fields=["target", "bandpass", "timestamp", "limit", "brightness", "instrument", "reduction_version"],
+                name="unique_photometry",
+                nulls_distinct=False
             )
         ]
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class SpectroscopyReducedDatum(ReducedDatumCommon):
@@ -467,13 +476,18 @@ class SpectroscopyReducedDatum(ReducedDatumCommon):
     flux_unit = models.TextField(blank=True, default="")
     wavelength_unit = models.TextField(blank=True, default="")
 
-    class Meta:
+    class Meta(ReducedDatumCommon.Meta):
         constraints = [
             models.UniqueConstraint(
-                fields=["target", "timestamp", "telescope", "instrument"],
+                fields=["target", "timestamp", "telescope", "instrument", "flux", "reduction_version"],
                 name="unique_spectroscopy",
+                nulls_distinct=False
             )
         ]
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class AstrometryReducedDatum(ReducedDatumCommon):
@@ -484,13 +498,18 @@ class AstrometryReducedDatum(ReducedDatumCommon):
     ra_error_units = models.CharField(max_length=32, blank=True, default="")
     dec_error_units = models.CharField(max_length=32, blank=True, default="")
 
-    class Meta:
+    class Meta(ReducedDatumCommon.Meta):
         constraints = [
             models.UniqueConstraint(
-                fields=["target", "timestamp", "telescope", "instrument"],
+                fields=["target", "timestamp", "telescope", "instrument", "ra", "dec", "reduction_version"],
                 name="unique_astrometry",
+                nulls_distinct=False
             )
         ]
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 REDUCED_DATUM_MODELS = (
